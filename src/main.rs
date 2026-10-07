@@ -3,6 +3,8 @@ mod install;
 #[cfg(target_os = "linux")]
 mod mtd;
 #[cfg(target_os = "linux")]
+mod platform;
+#[cfg(target_os = "linux")]
 mod unlock;
 
 #[cfg(target_os = "linux")]
@@ -24,13 +26,12 @@ mod linux_app {
     use crate::{
         install,
         mtd::{self, Partition},
+        platform::{self, Platform},
         unlock,
     };
 
     const INDEX_HTML: &str = include_str!("index.html");
     const MAX_UPLOAD_SIZE: usize = 4 * 1024 * 1024;
-    // The bundled module carries this kernel release in its vermagic.
-    const STOCK_KERNEL_RELEASE: &str = "5.4.55";
     static FLASH_IN_PROGRESS: AtomicBool = AtomicBool::new(false);
 
     #[derive(Serialize)]
@@ -97,8 +98,14 @@ mod linux_app {
 
     async fn index() -> Response {
         let partitions = mtd::discover_partitions().unwrap_or_default();
+        let platform = platform::detect();
         let page = INDEX_HTML
             .replace("{{VERSION}}", env!("CARGO_PKG_VERSION"))
+            .replace("{{PLATFORM}}", platform.name())
+            .replace(
+                "{{FLASH_SUPPORTED}}",
+                if platform.supports_flash() { "true" } else { "false" },
+            )
             .replace("{{PARTITIONS}}", &partition_table(&partitions));
         let mut response = Html(page).into_response();
         no_store(&mut response);
@@ -274,16 +281,18 @@ mod linux_app {
         Ok((listen, ignore_kernel_version))
     }
 
-    fn check_kernel_version(ignore_kernel_version: bool) -> Result<(), String> {
+    fn check_kernel_version(platform: Platform, ignore_kernel_version: bool) -> Result<(), String> {
         if ignore_kernel_version {
             return Ok(());
         }
         let release = std::fs::read_to_string("/proc/sys/kernel/osrelease")
             .map_err(|error| format!("Reading the kernel release failed: {error}"))?;
         let release = release.trim();
-        if release != STOCK_KERNEL_RELEASE {
+        if release != platform.expected_kernel() {
             return Err(format!(
-                "Kernel release is {release}; expected {STOCK_KERNEL_RELEASE}. Use --ignore-kernel-version to skip this check"
+                "Kernel release is {release}; expected {} on {}. Use --ignore-kernel-version to skip this check",
+                platform.expected_kernel(),
+                platform.name()
             ));
         }
         Ok(())
@@ -291,14 +300,20 @@ mod linux_app {
 
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let (listen, ignore_kernel_version) = parse_arguments()?;
-        check_kernel_version(ignore_kernel_version)?;
-        if unsafe { libc::geteuid() } == 0 {
-            match unlock::load() {
-                Ok(()) => println!("MTD write protection cleared"),
-                Err(error) => eprintln!("MTD unlock failed: {error}"),
+        let platform = platform::detect();
+        println!("Platform: {}", platform.name());
+        check_kernel_version(platform, ignore_kernel_version)?;
+        if platform.supports_flash() {
+            if unsafe { libc::geteuid() } == 0 {
+                match unlock::load() {
+                    Ok(()) => println!("MTD write protection cleared"),
+                    Err(error) => eprintln!("MTD unlock failed: {error}"),
+                }
+            } else {
+                eprintln!("MTD unlock requires root privileges");
             }
         } else {
-            eprintln!("MTD unlock requires root privileges");
+            println!("Backup-only mode: no bootloader image is available for this platform");
         }
         let app = Router::new()
             .route("/", get(index))

@@ -1,9 +1,17 @@
 use an758x_stock2ubi::{fip, ubi};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use crate::mtd;
+use crate::{mtd, platform};
 
 pub fn flash(bl2: &[u8], fip_image: &[u8]) -> Result<String, String> {
+    let platform = platform::detect();
+    if !platform.supports_flash() {
+        return Err(format!(
+            "Flashing is disabled on {}; only partition backup is available",
+            platform.name()
+        ));
+    }
+
     // Keep the HTTP runtime resident while the installed rootfs is overwritten.
     unsafe {
         libc::mlockall(libc::MCL_CURRENT);

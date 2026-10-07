@@ -7,6 +7,13 @@ reboots into recovery when flashing finishes.
 在原厂系统里刷入 U-Boot 恢复引导，无需拆机。打开网页备份分区并上传引导镜像，
 写入完成后设备会自动重启到恢复页面。
 
+On Broadcom-based devices (for example the FiberHome HG5382A3) only the
+partition backup is available: there is no bootloader image for this platform
+yet, so flashing is disabled and the Web page hides the flash step.
+
+在博通（Broadcom）平台上（例如烽火 HG5382A3）仅提供分区备份功能：该平台暂无
+可用的引导镜像，刷机功能已被禁用，网页中会隐藏刷机步骤。
+
 ## Use / 使用
 
 1. Upload `an758x-stock2ubi` to `/tmp` on the device.<br>
@@ -32,9 +39,10 @@ After reboot, open `http://192.168.0.1/` to continue installation. The recovery 
 重启后访问 `http://192.168.0.1/` 继续安装；首次进入恢复页面可能需要约一分钟。
 
 The default port is `3333`; use `--listen IP:PORT` to change it. Startup checks
-for kernel release `5.4.55`; `--ignore-kernel-version` skips that check.<br>
-默认端口为 `3333`，可用 `--listen IP:PORT` 修改。启动时检查内核 release 为
-`5.4.55`；`--ignore-kernel-version` 可跳过该检查。
+the kernel release (`5.4.55` on Airoha, `4.19.235` on Broadcom);
+`--ignore-kernel-version` skips that check.<br>
+默认端口为 `3333`，可用 `--listen IP:PORT` 修改。启动时检查内核 release（Airoha
+为 `5.4.55`，博通为 `4.19.235`）；`--ignore-kernel-version` 可跳过该检查。
 
 ## Cross-build / 交叉编译
 

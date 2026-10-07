@@ -42,7 +42,7 @@
 <main>
   <section>
     <header class="top">
-      <h1><span data-t="title">AN758x Stock2UBI Flashing Tool</span> <small>v{{VERSION}}</small></h1>
+      <h1><span data-t="title">AN758x Stock2UBI Flashing Tool</span> <small>v{{VERSION}} · {{PLATFORM}}</small></h1>
       <button id="language" class="secondary" type="button">Chinese</button>
     </header>
     <ol class="steps" aria-label="Wizard steps" data-t-aria="wizardSteps">
@@ -57,6 +57,8 @@
   </section>
   <section id="step-flash" class="step" aria-labelledby="flash-title" hidden>
     <h2 id="flash-title" data-t="flashTitle">Install recovery bootloader</h2>
+    <p id="flash-unavailable" class="hint" data-t="flashUnavailable" hidden>Flashing is not available on this platform; use the partition backup instead.</p>
+    <div id="flash-body">
     <p><span data-t="ubootSource">Download the U-Boot images from</span> <a href="https://github.com/pbs05/uboot-an758x" target="_blank" rel="noopener noreferrer">pbs05/uboot-an758x</a><span data-t="ubootSuffix">.</span></p>
     <form id="flash-form">
       <div class="files">
@@ -70,6 +72,7 @@
       <p class="hint"><span data-t="recoveryPrefix">After rebooting, open</span> <a href="http://192.168.0.1/">192.168.0.1</a> <span data-t="recoverySuffix">to continue in U-Boot recovery. The page may take about a minute to appear on the first boot.</span></p>
       <p id="status" role="status" aria-live="polite"></p>
     </form>
+    </div>
   </section>
   <nav class="actions" aria-label="Wizard actions" data-t-aria="wizardActions">
     <button id="back" class="secondary" type="button" data-t="back" disabled>Back</button>
@@ -93,7 +96,8 @@ const words = {
     recoverySuffix: 'to continue in U-Boot recovery. The page may take about a minute to appear on the first boot.',
     back: 'Back', next: 'Continue', write: 'Install bootloader',
     backupConfirm: 'Have you saved the partitions you want to keep?',
-    working: 'Checking images and writing the bootloader…'
+    working: 'Checking images and writing the bootloader…',
+    flashUnavailable: 'Flashing is disabled on this platform: no bootloader image is available for it yet. Use the partition backup above.'
   },
   zh: {
     title: 'AN758x stock2ubi免拆刷机工具',
@@ -108,7 +112,8 @@ const words = {
     recoverySuffix: '，继续在 U-Boot 恢复页面安装。首次启动时，页面可能需要约 1 分钟才会出现。',
     back: '返回', next: '继续', write: '刷入引导',
     backupConfirm: '需要保留的分区都备份好了吗？',
-    working: 'Checking images and writing the bootloader…'
+    working: 'Checking images and writing the bootloader…',
+    flashUnavailable: '当前平台暂无可用的引导镜像，刷机功能已禁用；请先使用上方的分区备份。'
   }
 };
 let language = (navigator.language || '').toLowerCase().startsWith('zh') ? 'zh' : 'en';
@@ -124,6 +129,11 @@ function applyLanguage() {
 languageButton.addEventListener('click', () => { language = language === 'en' ? 'zh' : 'en'; applyLanguage(); });
 applyLanguage();
 
+const flashSupported = {{FLASH_SUPPORTED}};
+if (!flashSupported) {
+  document.querySelector('#flash-body').hidden = true;
+  document.querySelector('#flash-unavailable').hidden = false;
+}
 const form = document.querySelector('#flash-form');
 const bl2 = document.querySelector('#bl2');
 const fip = document.querySelector('#fip');
@@ -136,14 +146,14 @@ const flashStep = document.querySelector('#step-flash');
 const backupLabel = document.querySelector('#step-label-backup');
 const flashLabel = document.querySelector('#step-label-flash');
 let writing = false;
-function updateButton() { submit.disabled = writing || !bl2.files.length || !fip.files.length; }
+function updateButton() { submit.disabled = writing || !flashSupported || !bl2.files.length || !fip.files.length; }
 function showStep(step) {
   const backup = step === 'backup';
   backupStep.hidden = !backup;
   flashStep.hidden = backup;
   back.disabled = backup || writing;
   next.hidden = !backup;
-  submit.hidden = backup;
+  submit.hidden = backup || !flashSupported;
   backupLabel.setAttribute('aria-current', backup ? 'step' : 'false');
   flashLabel.setAttribute('aria-current', backup ? 'false' : 'step');
   updateButton();
